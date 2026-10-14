@@ -1,0 +1,89 @@
+{
+  "updated_at": "2026-10-14 02:46:13",
+  "beads_inventory": [
+    {
+      "id": 1,
+      "size": "3 mm",
+      "cost": 12400.0,
+      "gain_unit_pct": 25.0,
+      "price_unit": 15500.0,
+      "gain_x20_pct": 15.0,
+      "price_unit_x20": 14260.0,
+      "price_total_x20": 285200.0,
+      "stock": 0
+    },
+    {
+      "id": 2,
+      "size": "4 mm",
+      "cost": 22400.0,
+      "gain_unit_pct": 20.0,
+      "price_unit": 26880.0,
+      "gain_x20_pct": 15.0,
+      "price_unit_x20": 25760.0,
+      "price_total_x20": 515200.0,
+      "stock": 22
+    },
+    {
+      "id": 3,
+      "size": "5 mm",
+      "cost": 31500.0,
+      "gain_unit_pct": 20.0,
+      "price_unit": 37800.0,
+      "gain_x20_pct": 15.0,
+      "price_unit_x20": 36225.0,
+      "price_total_x20": 724500.0,
+      "stock": 0
+    },
+    {
+      "id": 4,
+      "size": "6 mm",
+      "cost": 51000.0,
+      "gain_unit_pct": 15.0,
+      "price_unit": 58650.0,
+      "gain_x20_pct": 10.0,
+      "price_unit_x20": 56100.0,
+      "price_total_x20": 1122000.0,
+      "stock": 0
+    },
+    {
+      "id": 5,
+      "size": "7 mm",
+      "cost": 69800.0,
+      "gain_unit_pct": 20.0,
+      "price_unit": 83760.0,
+      "gain_x20_pct": 10.0,
+      "price_unit_x20": 76780.0,
+      "price_total_x20": 1535600.0,
+      "stock": 0
+    },
+    {
+      "id": 6,
+      "size": "8 mm",
+      "cost": 93900.0,
+      "gain_unit_pct": 20.0,
+      "price_unit": 112680.0,
+      "gain_x20_pct": 10.0,
+      "price_unit_x20": 103290.0,
+      "price_total_x20": 2065800.0,
+      "stock": 0
+    }
+  ],
+  "cash_flow": [],
+  "invoices": [],
+  "users": [
+    {
+      "id": 1,
+      "email": "admin@joyeria.com",
+      "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+      "name": "Administrador Principal",
+      "role": "ADMIN"
+    },
+    {
+      "id": 2,
+      "email": "vendedor@joyeria.com",
+      "password_hash": "d7a28746a583483a3f6d188ab990814b4ac220a7a3db240a633cd8b85c6080f3",
+      "name": "Vendedor / Cotizador",
+      "role": "COTIZADOR"
+    }
+  ]
+}
