@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
 SISTEMA DE GESTIÓN, COTIZACIÓN Y FACTURACIÓN
-MANILLAS CON BALINES DIAMANTADOS EN ORO 18K
+MANILLAS Y BALINES DIAMANTADOS EN ORO 18K
 - Cotizador de acceso directo sin login
+- Botón para alternar entre "Manilla Completa (+Confección)" y "Solo Balines ($0 Manilla)"
 - Panel Administrativo protegido por correo y contraseña
 - Precio de venta final editable / redondeable con cálculo real de ganancia
 - Resumen de Cuenta Bancaria, Ganancias Reales y Valoración de Inventario
-- Servidor Multihilo rápido + Auto-Persistencia contra reinicios de Render
+- Servidor Multihilo rápido + Auto-Persistencia en GitHub y Navegador
 Ejecución: python app_joyeria.py
 """
 
@@ -27,7 +28,7 @@ from datetime import datetime
 
 PORT = int(os.environ.get("PORT", 8000))
 
-# Opcional: Variables para persistencia automática en GitHub si se configuran en Render
+# Variables para persistencia automática en GitHub desde Render
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "").strip()
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "hrubioitanare/joyeria-app").strip()
 GITHUB_BACKUP_PATH = "backup_joyeria_db.json"
@@ -145,7 +146,6 @@ def init_db():
         )
     """)
 
-    # Migración segura de columnas nuevas si la tabla ya existía
     existing_cols = [row["name"] for row in c.execute("PRAGMA table_info(invoices)").fetchall()]
     if "suggested_amount" not in existing_cols:
         c.execute("ALTER TABLE invoices ADD COLUMN suggested_amount REAL DEFAULT 0")
@@ -154,7 +154,7 @@ def init_db():
     if "beads_details" not in existing_cols:
         c.execute("ALTER TABLE invoices ADD COLUMN beads_details TEXT DEFAULT '{}'")
 
-    # 6. Tabla de configuración / metadatos de sincronización
+    # 6. Tabla de metadatos
     c.execute("""
         CREATE TABLE IF NOT EXISTS app_meta (
             key TEXT PRIMARY KEY,
@@ -162,7 +162,6 @@ def init_db():
         )
     """)
 
-    # Insertar usuarios por defecto si no existen
     c.execute("SELECT COUNT(*) as cnt FROM users")
     if c.fetchone()["cnt"] == 0:
         c.execute("""
@@ -174,7 +173,6 @@ def init_db():
             VALUES (?, ?, ?, ?)
         """, ("vendedor@joyeria.com", hash_password("cotizar123"), "Vendedor / Cotizador", "COTIZADOR"))
 
-    # Insertar balines iniciales si no existen
     for b in INITIAL_BEADS:
         c.execute("""
             INSERT OR IGNORE INTO beads_inventory 
@@ -185,7 +183,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-    # Intentar restaurar desde GitHub Cloud si el contenedor de Render acaba de iniciar desde cero
     try_restore_from_github_on_boot()
 
 
@@ -296,7 +293,6 @@ def import_full_backup(data):
 
 
 def sync_to_github_cloud():
-    """Si GITHUB_TOKEN está configurado, guarda el respaldo JSON en el repositorio automáticamente."""
     if not GITHUB_TOKEN or not GITHUB_REPO:
         return
     try:
@@ -605,6 +601,42 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         @media (max-width: 820px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
         @media (max-width: 520px) { .grid-4 { grid-template-columns: 1fr; } }
 
+        /* MODE TOGGLE (MANILLA VS SOLO BALINES) */
+        .sale-mode-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            background: var(--bg-input);
+            padding: 6px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 16px;
+        }
+        .mode-btn {
+            padding: 10px 12px;
+            border-radius: 9px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--text-muted);
+            font-weight: 700;
+            font-size: 0.86rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .mode-btn.active {
+            background: linear-gradient(135deg, var(--gold-bright) 0%, var(--gold-primary) 100%);
+            color: #090D16;
+            box-shadow: 0 3px 10px rgba(212, 175, 55, 0.25);
+        }
+        .mode-btn small {
+            display: block;
+            font-size: 0.72rem;
+            font-weight: 600;
+            opacity: 0.85;
+            margin-top: 2px;
+        }
+
         /* FORMS & BUTTONS */
         .form-group { margin-bottom: 14px; }
         .form-group label {
@@ -837,7 +869,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <!-- ==================== NAVEGACIÓN ==================== -->
     <nav id="main-nav">
         <button class="nav-btn active" onclick="switchTab('cotizador')">📿 Cotizador Libre</button>
-        <!-- Pestañas exclusivas para cuando inicia sesión con correo y contraseña -->
         <button class="nav-btn admin-only" style="display:none;" onclick="switchTab('facturacion')">🧾 Crear Venta / Facturar</button>
         <button class="nav-btn admin-only" style="display:none;" onclick="switchTab('inventario')">📦 Inventario & Banco</button>
         <button class="nav-btn admin-only" style="display:none;" onclick="switchTab('caja')">💰 Caja & Gastos</button>
@@ -853,7 +884,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <!-- Columna Izquierda: Selector de Balines -->
                 <div class="card">
                     <div class="card-header">
-                        <h2>🔘 Seleccionar Balines de la Manilla</h2>
+                        <h2>🔘 Seleccionar Balines</h2>
                         <button class="btn btn-secondary btn-sm" onclick="resetQuote()">🗑️ Limpiar Todo</button>
                     </div>
                     <div id="quote-beads-list"></div>
@@ -865,7 +896,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         <h2>💎 Valoración y Precio de Venta</h2>
                     </div>
 
-                    <!-- Precio Calculado vs Precio Editable -->
+                    <!-- SELECTOR DE MODO: CON MANILLA (+50.000 / 15%) VS SOLO BALINES ($0) -->
+                    <div class="sale-mode-selector">
+                        <button type="button" id="mode-btn-bracelet" class="mode-btn active" onclick="setBraceletMode(true)">
+                            📿 Con Manilla Tejida
+                            <small>Suma $50.000 (o 15%) de confección</small>
+                        </button>
+                        <button type="button" id="mode-btn-beads-only" class="mode-btn" onclick="setBraceletMode(false)">
+                            💎 Solo Balines Sueltos
+                            <small>Sin cobro de manilla ($0 confección)</small>
+                        </button>
+                    </div>
+
+                    <!-- Precio Calculado -->
                     <div class="stat-card" style="margin-bottom: 14px;">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <span class="stat-label">Precio Calculado por Sistema</span>
@@ -878,7 +921,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <div class="price-override-box">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
                             <label style="font-size:0.8rem; font-weight:800; color:var(--gold-bright); text-transform:uppercase;">
-                                ✏️ Precio Final en que la vas a Vender ($ COP):
+                                ✏️ Precio Final en que lo vas a Vender ($ COP):
                             </label>
                             <span id="quote-discount-badge" style="font-size:0.76rem; color:var(--info); font-weight:700;">Sin ajuste</span>
                         </div>
@@ -894,17 +937,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </div>
 
                     <div id="quote-rule-alert" class="rule-badge">
-                        ℹ️ Selecciona balines para calcular la tarifa de confección.
+                        ℹ️ Selecciona balines para calcular el valor.
                     </div>
 
                     <!-- Desglose Financiero -->
                     <div style="background: var(--bg-card-alt); border-radius: 12px; padding: 14px; margin-bottom: 16px; border: 1px solid var(--border-color);">
                         <div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:6px;">
-                            <span style="color:var(--text-muted);">Subtotal Balines:</span>
+                            <span style="color:var(--text-muted);">Subtotal Venta Balines:</span>
                             <span id="quote-beads-subtotal" style="font-weight:600;">$ 0</span>
                         </div>
                         <div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:6px;">
-                            <span style="color:var(--gold-light);">Tarifa Confección / Manilla:</span>
+                            <span style="color:var(--gold-light);">Tarifa Confección Manilla:</span>
                             <span id="quote-surcharge-val" style="color:var(--gold-primary); font-weight:700;">$ 0</span>
                         </div>
                         <div id="quote-discount-row" style="display:none; justify-content:space-between; font-size:0.88rem; margin-bottom:6px; color:var(--info);">
@@ -914,7 +957,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
                         <div style="border-top:1px dashed var(--border-color); padding-top:10px; margin-top:8px;">
                             <div style="display:flex; justify-content:space-between; font-size:0.86rem; margin-bottom:5px; color:var(--text-muted);">
-                                <span>Costo Base Materiales (Inversión):</span>
+                                <span>Costo Base Balines (Inversión):</span>
                                 <span id="quote-cost-base" style="font-weight:600;">$ 0</span>
                             </div>
                             <div style="display:flex; justify-content:space-between; font-size:1.08rem; font-weight:800; color:var(--success);">
@@ -929,7 +972,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             📋 Copiar Cotización para WhatsApp
                         </button>
                         <button class="btn btn-gold" onclick="handleProceedToInvoice()">
-                            🧾 Crear Venta y Facturar esta Manilla
+                            🧾 Crear Venta y Facturar
                         </button>
                     </div>
                 </div>
@@ -960,16 +1003,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
                 <div style="background: var(--bg-card-alt); border-radius: 12px; padding: 16px; margin: 14px 0; border: 1px solid var(--border-color);">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <h4 style="color: var(--gold-light);">DETALLE DE LA MANILLA A FACTURAR</h4>
-                        <button class="btn btn-secondary btn-sm" onclick="switchTab('cotizador')">+ Cambiar Balines en Cotizador</button>
+                        <h4 style="color: var(--gold-light);">DETALLE DEL PEDIDO A FACTURAR</h4>
+                        <button class="btn btn-secondary btn-sm" onclick="switchTab('cotizador')">+ Cambiar en Cotizador</button>
                     </div>
                     <div id="invoice-items-summary" style="color: var(--text-muted); font-size:0.9rem;">
-                        No hay manillas cargadas. Selecciona los balines en el Cotizador y pulsa "Crear Venta".
+                        No hay productos cargados. Selecciona los balines en el Cotizador y pulsa "Crear Venta".
                     </div>
                     <div id="invoice-items-table-container" style="display:none;" class="table-responsive">
                         <table>
                             <thead>
-                                <tr><th>Descripción</th><th>Balines</th><th>Precio Calculado</th><th>Precio Final Venta</th><th>Ganancia Neta</th><th></th></tr>
+                                <tr><th>Descripción</th><th>Balines</th><th>Modalidad</th><th>Precio Calculado</th><th>Precio Final Venta</th><th>Ganancia Neta</th><th></th></tr>
                             </thead>
                             <tbody id="invoice-items-tbody"></tbody>
                         </table>
@@ -979,11 +1022,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <div class="grid-2">
                     <div class="form-group">
                         <label>Observaciones (Color de hilo, medida, método de pago, etc.)</label>
-                        <textarea id="inv-notes" class="form-control" rows="4" placeholder="Ej: Hilo negro tejido macramé, 18cm, pago por Nequi/Bancolombia..."></textarea>
+                        <textarea id="inv-notes" class="form-control" rows="4" placeholder="Ej: Solo balines sueltos / Hilo negro tejido macramé, pago por Nequi/Bancolombia..."></textarea>
                     </div>
                     <div style="background: var(--bg-card-alt); padding: 16px; border-radius: 12px; border: 1px solid var(--border-gold);">
                         <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.9rem;">
-                            <span style="color:var(--text-muted);">Subtotal Balines + Confección:</span>
+                            <span style="color:var(--text-muted);">Precio Sugerido Sistema:</span>
                             <span id="inv-summary-suggested">$ 0</span>
                         </div>
                         <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:0.88rem; color:var(--info);">
@@ -1012,7 +1055,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         <!-- ==================== TAB 3: INVENTARIO Y RESUMEN BANCARIO ==================== -->
         <div id="tab-inventario" class="tab-content admin-only">
-            <!-- TARJETAS DE RESUMEN DE CUENTA BANCARIA, GANANCIAS E INVENTARIO -->
             <div class="grid-4" style="margin-bottom: 18px;">
                 <div class="stat-card gold-border">
                     <div class="stat-label">🏦 Total en Cuenta Bancaria / Caja</div>
@@ -1045,7 +1087,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </div>
                 </div>
                 <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:15px;">
-                    💡 Cambia las unidades de cualquier balín y pulsa <strong>💾</strong> para guardar inmediatamente. Todos los cambios quedan respaldados.
+                    💡 Cambia las unidades de cualquier balín y pulsa <strong>💾</strong> para guardar inmediatamente. Todos los cambios quedan respaldados en la nube.
                 </p>
                 <div class="table-responsive">
                     <table>
@@ -1083,7 +1125,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <div class="stat-value" id="cash-balance" style="color:var(--gold-bright);">$ 0</div>
                 </div>
                 <div class="stat-card success-border">
-                    <div class="stat-label">✨ Ganancia Neta de Manillas</div>
+                    <div class="stat-label">✨ Ganancia Neta Acumulada</div>
                     <div class="stat-value" id="cash-real-profit" style="color:var(--success);">$ 0</div>
                     <div class="stat-sub">Capital costo recuperado: <span id="cash-recovered-cost">$ 0</span></div>
                 </div>
@@ -1156,6 +1198,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                                 <th>Factura</th>
                                 <th>Fecha</th>
                                 <th>Cliente</th>
+                                <th>Modalidad</th>
                                 <th>Precio Calculado</th>
                                 <th>Vendido En (Real)</th>
                                 <th>Costo Balines</th>
@@ -1176,7 +1219,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <h2>☁️ Respaldo y Sincronización Permanente de Datos</h2>
                 </div>
                 <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:14px;">
-                    El sistema guarda automáticamente una copia espejo en tu navegador y la restaura si el servidor gratuito de Render se reinicia. Además, puedes descargar o cargar un archivo de respaldo cuando quieras pasar información entre dispositivos:
+                    El sistema guarda automáticamente tus cambios en GitHub y en el navegador. También puedes descargar o restaurar manualmente un archivo de respaldo cuando lo desees:
                 </p>
                 <div style="display:flex; gap:12px; flex-wrap:wrap;">
                     <button class="btn btn-gold" onclick="downloadBackupFile()">📥 Descargar Copia de Seguridad (.JSON)</button>
@@ -1223,7 +1266,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     <!-- ==================== MODALES ==================== -->
 
-    <!-- MODAL DE INICIO DE SESIÓN (PARA FACTURAR / ADMINISTRAR) -->
+    <!-- MODAL DE INICIO DE SESIÓN -->
     <div id="login-modal" class="modal-overlay">
         <div class="modal-content modal-dark" style="max-width:420px; text-align:center;">
             <div style="font-size: 2.3rem; margin-bottom: 6px;">🔐</div>
@@ -1260,7 +1303,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="modal-content">
             <div class="inv-header">
                 <h2>✨ JOYERÍA ORO & BALINES 18K ✨</h2>
-                <p style="font-weight:600; color:#555;">VENTA DE MANILLAS CON BALINES DIAMANTADOS EN ORO</p>
+                <p style="font-weight:600; color:#555;">VENTA DE BALINES DIAMANTADOS Y MANILLAS EN ORO 18K</p>
                 <p style="font-size:0.8rem; color:#777;">Calidad Garantizada • Oro 18K</p>
                 <div style="margin-top:6px; font-weight:800; color:#b45309; font-size:1.05rem;" id="modal-inv-number">FACTURA N°</div>
             </div>
@@ -1274,7 +1317,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </table>
             <div class="inv-totals">
                 <div class="inv-totals-row"><span>Subtotal Balines:</span><span id="modal-inv-subtotal">$ 0</span></div>
-                <div class="inv-totals-row"><span id="modal-inv-rule-label">Confección:</span><span id="modal-inv-surcharge">$ 0</span></div>
+                <div class="inv-totals-row" id="modal-inv-surcharge-row"><span id="modal-inv-rule-label">Confección:</span><span id="modal-inv-surcharge">$ 0</span></div>
                 <div class="inv-totals-row" id="modal-inv-discount-row" style="display:none; color:#0284c7;">
                     <span>Descuento / Ajuste Especial:</span><span id="modal-inv-discount">$ 0</span>
                 </div>
@@ -1397,8 +1440,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         let currentUser = null;
         let inventoryData = [];
         let quoteSelection = {};
+        let includeBraceletSurcharge = true; // true = Con Manilla (+50.000 o 15%), false = Solo Balines ($0)
         let currentQuoteResult = null;
-        let customOverridePrice = null; // null = usar sugerido, número = precio editado por el usuario
+        let customOverridePrice = null;
         let pendingInvoiceItems = [];
         let pendingTransferAfterLogin = false;
 
@@ -1414,7 +1458,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             };
         }
 
-        // ==================== AUTO-SINCRONIZACIÓN CONTRA REINICIOS DE RENDER ====================
+        // ==================== AUTO-SINCRONIZACIÓN ====================
         async function syncWithLocalMirror() {
             try {
                 const localRaw = localStorage.getItem(MIRROR_STORAGE_KEY);
@@ -1429,20 +1473,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     serverBackup.cash_flow.length === 0 &&
                     serverBackup.beads_inventory.every(b => (b.stock || 0) === 0);
 
-                // Si Render se durmió y amaneció en cero, pero el dispositivo tiene el respaldo, lo restaura automáticamente
                 if (serverEmpty && localBackup && localBackup.updated_at) {
                     await fetch('/api/restore-mirror', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(localBackup)
                     });
-                    console.log("Respaldo restaurado automáticamente al servidor.");
                 } else if (serverBackup.updated_at) {
                     localStorage.setItem(MIRROR_STORAGE_KEY, JSON.stringify(serverBackup));
                 }
-            } catch (e) {
-                console.warn("Mirror sync warning:", e);
-            }
+            } catch (e) {}
         }
 
         async function saveServerToLocalMirror() {
@@ -1628,6 +1668,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             }
         }
 
+        function setBraceletMode(withBracelet) {
+            includeBraceletSurcharge = withBracelet;
+            const btnBracelet = document.getElementById('mode-btn-bracelet');
+            const btnBeadsOnly = document.getElementById('mode-btn-beads-only');
+
+            if (withBracelet) {
+                btnBracelet.classList.add('active');
+                btnBeadsOnly.classList.remove('active');
+            } else {
+                btnBracelet.classList.remove('active');
+                btnBeadsOnly.classList.add('active');
+            }
+
+            // Al cambiar entre Manilla y Solo Balines, se actualiza al nuevo precio sugerido automáticamente
+            customOverridePrice = null;
+            calculateQuoteLive(true);
+        }
+
         function renderQuoteBeadsList() {
             const container = document.getElementById('quote-beads-list');
             container.innerHTML = '';
@@ -1665,7 +1723,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 if (quoteSelection[size] > 0) row.classList.add('selected-row');
                 else row.classList.remove('selected-row');
             }
-            customOverridePrice = null; // Al cambiar balines se recalcula el sugerido
+            customOverridePrice = null;
             calculateQuoteLive(true);
         }
 
@@ -1738,16 +1796,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             let isHighValue = false;
 
             if (subtotalProfit > 0) {
-                if (subtotalProfit < 500000) {
+                if (!includeBraceletSurcharge) {
+                    surcharge = 0;
+                    ruleLabel = "Modo Solo Balines: Sin cobro de manilla ($0 confección). Solo ganancia de balines.";
+                    isHighValue = false;
+                } else if (subtotalProfit < 500000) {
                     surcharge = 50000;
-                    ruleLabel = "Menor a $500.000: Se suman $50.000 fijos de confección de manilla.";
+                    ruleLabel = "Con Manilla (< $500.000): Se suman $50.000 fijos de confección.";
                 } else {
                     surcharge = Math.round(subtotalProfit * 0.15);
-                    ruleLabel = "Mayor o igual a $500.000: Se suma 15% de confección de manilla.";
+                    ruleLabel = "Con Manilla (≥ $500.000): Se suma 15% de confección.";
                     isHighValue = true;
                 }
             } else {
-                ruleLabel = "Selecciona balines para calcular la tarifa.";
+                ruleLabel = "Selecciona balines para calcular el valor.";
             }
 
             const suggestedPrice = Math.round(subtotalProfit + surcharge);
@@ -1761,6 +1823,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 costBase,
                 subtotalProfit,
                 surcharge,
+                includeBraceletSurcharge,
                 ruleLabel,
                 isHighValue,
                 suggestedPrice,
@@ -1816,19 +1879,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 return;
             }
 
-            let text = `✨ *COTIZACIÓN DE MANILLA EN ORO 18K* ✨\n`;
+            const isManilla = currentQuoteResult.includeBraceletSurcharge;
+            let text = isManilla
+                ? `✨ *COTIZACIÓN DE MANILLA EN ORO 18K* ✨\n`
+                : `✨ *COTIZACIÓN DE BALINES EN ORO 18K* ✨\n`;
             text += `Joyería Fina & Balines Diamantados\n\n`;
             text += `💎 *Detalle de balines seleccionados:*\n`;
             currentQuoteResult.breakdown.forEach(b => {
                 text += `• ${b.qty} balines de ${b.size}: ${formatCOP(b.price)}\n`;
             });
             text += `\n📌 *Subtotal balines:* ${formatCOP(currentQuoteResult.subtotalProfit)}\n`;
-            text += `🧵 *Confección y tejido:* ${formatCOP(currentQuoteResult.surcharge)}\n`;
+            if (isManilla) {
+                text += `🧵 *Confección y tejido:* ${formatCOP(currentQuoteResult.surcharge)}\n`;
+            }
             if (currentQuoteResult.discountAmount > 0) {
                 text += `🎁 *Descuento especial:* -${formatCOP(currentQuoteResult.discountAmount)}\n`;
             }
             text += `💰 *PRECIO TOTAL A PAGAR:* ${formatCOP(currentQuoteResult.finalPrice)} COP\n\n`;
-            text += `✅ Oro 18K garantizado de por vida. Tejido personalizado.`;
+            text += `✅ Oro 18K garantizado de por vida.`;
 
             navigator.clipboard.writeText(text).then(() => {
                 alert("¡Cotización copiada con el precio final! Ya puedes pegarla en WhatsApp.");
@@ -1852,14 +1920,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         function executeTransferToInvoice() {
             const summaryText = currentQuoteResult.breakdown.map(b => `${b.qty} de ${b.size}`).join(", ");
+            const isManilla = currentQuoteResult.includeBraceletSurcharge;
+
+            let ruleText = "Solo Balines ($0)";
+            if (isManilla) {
+                ruleText = currentQuoteResult.isHighValue ? "+15% Manilla" : "+$50.000 Manilla";
+            }
+
             pendingInvoiceItems = [{
-                description: `Manilla con ${currentQuoteResult.totalBeadsCount} balines diamantados`,
+                description: isManilla
+                    ? `Manilla con ${currentQuoteResult.totalBeadsCount} balines diamantados`
+                    : `Venta de ${currentQuoteResult.totalBeadsCount} balines diamantados (Sueltos)`,
                 beads_details: JSON.stringify(quoteSelection),
                 beads_summary: summaryText,
                 cost_amount: currentQuoteResult.costBase,
                 subtotal_beads: currentQuoteResult.subtotalProfit,
                 surcharge: currentQuoteResult.surcharge,
-                surcharge_rule: currentQuoteResult.isHighValue ? "+15% Manilla" : "+$50.000 Fijo",
+                surcharge_rule: ruleText,
                 suggested_amount: currentQuoteResult.suggestedPrice,
                 discount_amount: currentQuoteResult.discountAmount,
                 total_price: currentQuoteResult.finalPrice,
@@ -1902,6 +1979,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             tr.innerHTML = `
                 <td><strong>${item.description}</strong></td>
                 <td><span class="badge-role badge-admin">${item.beads_summary}</span></td>
+                <td><span class="badge-role badge-guest">${item.surcharge_rule}</span></td>
                 <td style="color:var(--text-muted);">${formatCOP(item.suggested_amount)}</td>
                 <td><strong style="color:var(--gold-bright); font-size:1.05rem;">${formatCOP(item.total_price)}</strong></td>
                 <td style="color:var(--success); font-weight:700;">${formatCOP(item.profit_amount)}</td>
@@ -1931,7 +2009,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         async function submitInvoice() {
             const customerName = document.getElementById('inv-customer-name').value.trim();
             if (!customerName) return alert("Ingresa el nombre del cliente.");
-            if (pendingInvoiceItems.length === 0) return alert("Carga una manilla desde el Cotizador antes de facturar.");
+            if (pendingInvoiceItems.length === 0) return alert("Carga un pedido desde el Cotizador antes de facturar.");
 
             const item = pendingInvoiceItems[0];
             const payload = {
@@ -2222,6 +2300,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         <td><strong style="color:var(--gold-bright);">${inv.invoice_number}</strong></td>
                         <td>${inv.date}</td>
                         <td><strong>${inv.customer_name}</strong><br><small style="color:var(--text-muted);">${inv.customer_phone || ''}</small></td>
+                        <td><span class="badge-role badge-guest">${inv.surcharge_rule || 'Manilla'}</span></td>
                         <td style="color:var(--text-muted);">${formatCOP(sug)}</td>
                         <td><strong style="color:var(--gold-light); font-size:1rem;">${formatCOP(inv.total_amount)}</strong></td>
                         <td style="color:var(--text-muted);">${formatCOP(inv.cost_amount)}</td>
@@ -2265,18 +2344,29 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 if (detailsObj[sz] > 0) beadListText.push(`${detailsObj[sz]}x ${sz}`);
             }
 
+            const isBeadsOnly = (inv.bracelet_surcharge || 0) === 0;
+            const itemTitle = isBeadsOnly
+                ? 'Balines Diamantados en Oro 18K (Sueltos)'
+                : 'Manilla en Oro 18K con Balines Diamantados';
+
             const tbody = document.getElementById('modal-inv-tbody');
             tbody.innerHTML = `
                 <tr>
-                    <td><strong>Manilla en Oro 18K con Balines Diamantados</strong></td>
-                    <td>${beadListText.join(', ') || 'Manilla personalizada'}</td>
+                    <td><strong>${itemTitle}</strong></td>
+                    <td>${beadListText.join(', ') || 'Personalizado'}</td>
                     <td style="text-align:right; font-weight:600;">${formatCOP(inv.subtotal_beads)}</td>
                 </tr>
             `;
 
             document.getElementById('modal-inv-subtotal').innerText = formatCOP(inv.subtotal_beads);
-            document.getElementById('modal-inv-rule-label').innerText = `Confección (${inv.surcharge_rule}):`;
-            document.getElementById('modal-inv-surcharge').innerText = formatCOP(inv.bracelet_surcharge);
+            const surchargeRow = document.getElementById('modal-inv-surcharge-row');
+            if (isBeadsOnly) {
+                surchargeRow.style.display = 'none';
+            } else {
+                surchargeRow.style.display = 'flex';
+                document.getElementById('modal-inv-rule-label').innerText = `Confección (${inv.surcharge_rule}):`;
+                document.getElementById('modal-inv-surcharge').innerText = formatCOP(inv.bracelet_surcharge);
+            }
 
             const discRow = document.getElementById('modal-inv-discount-row');
             if (inv.discount_amount && inv.discount_amount !== 0) {
@@ -2403,7 +2493,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         document.getElementById('cf-date').value = new Date().toISOString().split('T')[0];
 
-        // Mantener despierto el servidor mientras la pestaña esté abierta
         setInterval(() => { fetch('/api/health').catch(() => {}); }, 240000);
 
         initApp();
@@ -2437,7 +2526,6 @@ class JewelryRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({"status": "ok"})
             return
 
-        # Ruta pública para el Cotizador sin necesidad de iniciar sesión
         if path == "/api/inventory":
             conn = get_db()
             c = conn.cursor()
@@ -2451,7 +2539,6 @@ class JewelryRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(export_full_backup())
             return
 
-        # Rutas protegidas (requieren login)
         user = authenticate_request(self.headers)
         if not user:
             self._send_json({"error": "No autenticado"}, status=401)
@@ -2526,14 +2613,12 @@ class JewelryRequestHandler(http.server.SimpleHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         payload = json.loads(self.rfile.read(length).decode("utf-8")) if length > 0 else {}
 
-        # Restauración automática desde espejo local
         if path == "/api/restore-mirror":
             ok = import_full_backup(payload)
             sync_to_github_cloud()
             self._send_json({"success": ok})
             return
 
-        # Login
         if path == "/api/login":
             email = payload.get("email", "").strip().lower()
             password = payload.get("password", "")
@@ -2567,7 +2652,6 @@ class JewelryRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({"success": False, "error": "Correo o contraseña incorrectos."}, status=401)
                 return
 
-        # Rutas autenticadas
         user = authenticate_request(self.headers)
         if not user:
             self._send_json({"error": "Debes iniciar sesión para realizar esta acción."}, status=401)
@@ -2602,6 +2686,8 @@ class JewelryRequestHandler(http.server.SimpleHTTPRequestHandler):
             profit_amount = total_amount - cost_amount
             suggested_amount = float(payload.get("suggested_amount", total_amount))
             discount_amount = suggested_amount - total_amount
+            surcharge_val = float(payload.get("bracelet_surcharge", 0))
+            cat_label = "Venta Solo Balines" if surcharge_val == 0 else "Venta Manilla"
 
             c.execute("""
                 INSERT INTO invoices (
@@ -2612,7 +2698,7 @@ class JewelryRequestHandler(http.server.SimpleHTTPRequestHandler):
             """, (
                 invoice_num, today_str, payload.get("customer_name"),
                 payload.get("customer_phone", ""), payload.get("customer_id_doc", ""),
-                payload.get("subtotal_beads", 0), payload.get("bracelet_surcharge", 0),
+                payload.get("subtotal_beads", 0), surcharge_val,
                 payload.get("surcharge_rule", ""), suggested_amount,
                 discount_amount, total_amount, cost_amount, profit_amount,
                 json.dumps(beads_details, ensure_ascii=False), payload.get("notes", "")
@@ -2623,7 +2709,7 @@ class JewelryRequestHandler(http.server.SimpleHTTPRequestHandler):
                 INSERT INTO cash_flow (date, type, category, description, amount, invoice_id)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (
-                datetime.now().strftime("%Y-%m-%d"), "INGRESO", "Venta Manilla",
+                datetime.now().strftime("%Y-%m-%d"), "INGRESO", cat_label,
                 f"Venta {invoice_num} - {payload.get('customer_name')} (Ganancia: ${round(profit_amount):,})",
                 total_amount, invoice_id
             ))
@@ -2840,4 +2926,4 @@ def start_server():
 
 
 if __name__ == "__main__":
-    start_server()    
+    start_server()
