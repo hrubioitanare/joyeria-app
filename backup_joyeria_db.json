@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-10-14 22:01:16",
+  "updated_at": "2026-10-16 20:15:33",
   "beads_inventory": [
     {
       "id": 1,
@@ -76,6 +76,15 @@
       "category": "Otro",
       "description": "CUENTA BANCARIA DAVIVIENDA",
       "amount": 167901.0,
+      "invoice_id": null
+    },
+    {
+      "id": 4,
+      "date": "2026-10-16",
+      "type": "INGRESO",
+      "category": "Venta Directa",
+      "description": "Balines prima de nicolas",
+      "amount": 86001.0,
       "invoice_id": null
     }
   ],
