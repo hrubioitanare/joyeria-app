@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-10-16 20:15:33",
+  "updated_at": "2026-11-25 17:50:07",
   "beads_inventory": [
     {
       "id": 1,
@@ -69,15 +69,6 @@
     }
   ],
   "cash_flow": [
-    {
-      "id": 3,
-      "date": "2026-10-14",
-      "type": "INGRESO",
-      "category": "Otro",
-      "description": "CUENTA BANCARIA DAVIVIENDA",
-      "amount": 167901.0,
-      "invoice_id": null
-    },
     {
       "id": 4,
       "date": "2026-10-16",
