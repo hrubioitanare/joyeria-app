@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-25 17:50:07",
+  "updated_at": "2026-11-25 17:50:09",
   "beads_inventory": [
     {
       "id": 1,
@@ -68,17 +68,7 @@
       "stock": 0
     }
   ],
-  "cash_flow": [
-    {
-      "id": 4,
-      "date": "2026-10-16",
-      "type": "INGRESO",
-      "category": "Venta Directa",
-      "description": "Balines prima de nicolas",
-      "amount": 86001.0,
-      "invoice_id": null
-    }
-  ],
+  "cash_flow": [],
   "invoices": [],
   "users": [
     {
