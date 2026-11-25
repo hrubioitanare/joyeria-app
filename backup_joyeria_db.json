@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-25 17:58:23",
+  "updated_at": "2026-11-25 17:58:41",
   "beads_inventory": [
     {
       "id": 1,
@@ -32,7 +32,7 @@
       "gain_x20_pct": 15.0,
       "price_unit_x20": 36225.0,
       "price_total_x20": 724500.0,
-      "stock": 7
+      "stock": 2
     },
     {
       "id": 4,
