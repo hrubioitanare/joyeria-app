@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-25 17:50:09",
+  "updated_at": "2026-11-25 17:56:47",
   "beads_inventory": [
     {
       "id": 1,
@@ -21,7 +21,7 @@
       "gain_x20_pct": 15.0,
       "price_unit_x20": 25760.0,
       "price_total_x20": 515200.0,
-      "stock": 22
+      "stock": 13
     },
     {
       "id": 3,
@@ -32,7 +32,7 @@
       "gain_x20_pct": 15.0,
       "price_unit_x20": 36225.0,
       "price_total_x20": 724500.0,
-      "stock": 8
+      "stock": 7
     },
     {
       "id": 4,
@@ -43,7 +43,7 @@
       "gain_x20_pct": 10.0,
       "price_unit_x20": 56100.0,
       "price_total_x20": 1122000.0,
-      "stock": 10
+      "stock": 4
     },
     {
       "id": 5,
@@ -68,8 +68,37 @@
       "stock": 0
     }
   ],
-  "cash_flow": [],
-  "invoices": [],
+  "cash_flow": [
+    {
+      "id": 1,
+      "date": "2026-11-25",
+      "type": "INGRESO",
+      "category": "Venta Manilla",
+      "description": "Venta FACT-0001-B5 - Ventas varias (davivienda) (Ganancia: $80,900)",
+      "amount": 620000.0,
+      "invoice_id": 1
+    }
+  ],
+  "invoices": [
+    {
+      "id": 1,
+      "invoice_number": "FACT-0001-B5",
+      "date": "2026-11-25 17:56",
+      "customer_name": "Ventas varias (davivienda)",
+      "customer_phone": "",
+      "customer_id_doc": "",
+      "subtotal_beads": 631620.0,
+      "bracelet_surcharge": 94743.0,
+      "surcharge_rule": "+15% Manilla",
+      "suggested_amount": 726363.0,
+      "discount_amount": 106363.0,
+      "total_amount": 620000.0,
+      "cost_amount": 539100.0,
+      "profit_amount": 80900.0,
+      "beads_details": "{\"3 mm\": 0, \"4 mm\": 9, \"5 mm\": 1, \"6 mm\": 6, \"7 mm\": 0, \"8 mm\": 0}",
+      "notes": "8 #4\n6 #6\n8 #4\nMamá Emmanuel 1 #5 y 1 #4"
+    }
+  ],
   "users": [
     {
       "id": 1,
